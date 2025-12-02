@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import ImageAnalyzer from './components/ImageAnalyzer';
 import ChatWidget from './components/ChatWidget';
-import { SparklesIcon, CheckCircleIcon, ChevronDownIcon, LightBulbIcon, ShieldCheckIcon, GlobeIcon } from './components/Icons';
+import AuthModal from './components/AuthModal';
+import { User } from './types';
+import { SparklesIcon, CheckCircleIcon, ChevronDownIcon, LightBulbIcon, ShieldCheckIcon, GlobeIcon, CubeIcon, TruckIcon, BrushIcon, TagIcon, UserIcon, LogOutIcon, MagnifyingGlassIcon } from './components/Icons';
 
 const FAQItem = ({ question, answer }: { question: string, answer: string }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -28,6 +30,76 @@ const FAQItem = ({ question, answer }: { question: string, answer: string }) => 
 
 const App: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [activeCategory, setActiveCategory] = useState("All");
+  const [user, setUser] = useState<User | null>(null);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
+  
+  // Tracking State
+  const [trackId, setTrackId] = useState('');
+  const [trackingResult, setTrackingResult] = useState<{status: string, message: string, step: number} | null>(null);
+  const [isTracking, setIsTracking] = useState(false);
+
+  useEffect(() => {
+    // Check for existing session
+    const storedUser = localStorage.getItem('simayne_user');
+    if (storedUser) {
+      try {
+        setUser(JSON.parse(storedUser));
+      } catch (e) {
+        localStorage.removeItem('simayne_user');
+      }
+    }
+  }, []);
+
+  const handleLogin = (newUser: User) => {
+    setUser(newUser);
+    localStorage.setItem('simayne_user', JSON.stringify(newUser));
+  };
+
+  const handleLogout = () => {
+    setUser(null);
+    localStorage.removeItem('simayne_user');
+  };
+
+  const openAuth = (mode: 'login' | 'signup') => {
+    setAuthMode(mode);
+    setIsAuthModalOpen(true);
+  };
+
+  const handleTrackOrder = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!trackId.trim()) return;
+
+    setIsTracking(true);
+    setTrackingResult(null);
+
+    // Mock API simulation
+    setTimeout(() => {
+      setIsTracking(false);
+      const id = trackId.toUpperCase();
+      
+      if (id.startsWith('SIM')) {
+        setTrackingResult({
+          status: 'In Transit',
+          message: 'Your order is currently moving through our regional sorting hub.',
+          step: 2
+        });
+      } else if (id.startsWith('DEL')) {
+        setTrackingResult({
+          status: 'Delivered',
+          message: 'Package was successfully delivered and signed for.',
+          step: 3
+        });
+      } else {
+        setTrackingResult({
+          status: 'Order Not Found',
+          message: 'We could not locate this order ID. Please check the number and try again.',
+          step: 0
+        });
+      }
+    }, 1500);
+  };
 
   const faqs = [
     { 
@@ -51,6 +123,69 @@ const App: React.FC = () => {
       answer: "Yes! We have an entrepreneurial mindset and work closely with small manufacturers and suppliers to support local brands while offering competitive pricing." 
     }
   ];
+
+  const categories = ["All", "Procurement & Supply", "Custom Branding", "Strategic Sourcing"];
+
+  const services = [
+    { 
+      category: "Procurement & Supply", 
+      title: "Bulk Beverages", 
+      desc: "Supply of soft drinks, water, and juices for events, retail, and hospitality.",
+      icon: <CubeIcon className="h-6 w-6" />
+    },
+    { 
+      category: "Procurement & Supply", 
+      title: "FMCG Distribution", 
+      desc: "Reliable sourcing of fast-moving consumer goods and household essentials.",
+      icon: <TruckIcon className="h-6 w-6" />
+    },
+    { 
+      category: "Procurement & Supply", 
+      title: "General Trade Supplies", 
+      desc: "Sourcing general goods, tools, and equipment for various business needs.",
+      icon: <TagIcon className="h-6 w-6" />
+    },
+    { 
+      category: "Custom Branding", 
+      title: "Engraved Glassware", 
+      desc: "Premium custom engraving on glasses for gifts, events, or corporate branding.",
+      icon: <BrushIcon className="h-6 w-6" />
+    },
+    { 
+      category: "Custom Branding", 
+      title: "Merchandise Printing", 
+      desc: "High-quality printing on clothing, caps, and promotional items.",
+      icon: <SparklesIcon className="h-6 w-6" />
+    },
+    { 
+      category: "Custom Branding", 
+      title: "Custom Packaging", 
+      desc: "Tailored packaging solutions to elevate your product presentation.",
+      icon: <CubeIcon className="h-6 w-6" />
+    },
+    { 
+      category: "Strategic Sourcing", 
+      title: "Hard-to-find Stock", 
+      desc: "Specialized sourcing for rare or out-of-stock items using our network.",
+      icon: <GlobeIcon className="h-6 w-6" />
+    },
+    { 
+      category: "Strategic Sourcing", 
+      title: "White Labeling", 
+      desc: "Helping you create your own product lines with our manufacturing partners.",
+      icon: <TagIcon className="h-6 w-6" />
+    },
+    { 
+      category: "Strategic Sourcing", 
+      title: "Tender Supply", 
+      desc: "Professional procurement support for government and private tenders.",
+      icon: <CheckCircleIcon className="h-6 w-6" />
+    }
+  ];
+
+  const filteredServices = activeCategory === "All" 
+    ? services 
+    : services.filter(s => s.category === activeCategory);
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 selection:bg-indigo-500/30 font-sans">
@@ -78,15 +213,48 @@ const App: React.FC = () => {
             </div>
             
             <div className="hidden md:block">
-              <div className="ml-10 flex items-center space-x-8">
+              <div className="ml-10 flex items-center space-x-6">
                 <a href="#home" className="text-slate-300 hover:text-white transition-colors text-sm font-medium hover:bg-white/5 px-3 py-2 rounded-lg">Home</a>
-                <a href="#about" className="text-slate-300 hover:text-white transition-colors text-sm font-medium hover:bg-white/5 px-3 py-2 rounded-lg">About Us</a>
+                <a href="#about" className="text-slate-300 hover:text-white transition-colors text-sm font-medium hover:bg-white/5 px-3 py-2 rounded-lg">About</a>
                 <a href="#services" className="text-slate-300 hover:text-white transition-colors text-sm font-medium hover:bg-white/5 px-3 py-2 rounded-lg">Services</a>
-                <a href="#faq" className="text-slate-300 hover:text-white transition-colors text-sm font-medium hover:bg-white/5 px-3 py-2 rounded-lg">FAQ</a>
                 <a href="#vision" className="text-slate-300 hover:text-white transition-colors text-sm font-medium hover:bg-white/5 px-3 py-2 rounded-lg">AI Tools</a>
-                <a href="https://kasilyfstyle.com" target="_blank" rel="noopener noreferrer" className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white px-5 py-2.5 rounded-full text-sm font-semibold shadow-lg shadow-blue-500/20 hover:shadow-blue-500/40 transition-all transform hover:-translate-y-0.5">
+                <a href="https://kasilyfstyle.com" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 text-sm font-medium px-2">
                   Shop KasiLyf
                 </a>
+                
+                {/* User Auth Section */}
+                {user ? (
+                   <div className="flex items-center gap-4 pl-4 border-l border-white/10">
+                      <div className="flex items-center gap-2">
+                         <div className="h-8 w-8 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-xs font-bold text-white shadow-lg">
+                           {user.name.split(' ').map(n => n[0]).join('').substring(0,2).toUpperCase()}
+                         </div>
+                         <span className="text-sm font-medium text-white">{user.name.split(' ')[0]}</span>
+                      </div>
+                      <button 
+                        onClick={handleLogout}
+                        className="p-2 text-slate-400 hover:text-white hover:bg-white/5 rounded-full transition-colors"
+                        title="Sign Out"
+                      >
+                         <LogOutIcon className="h-5 w-5" />
+                      </button>
+                   </div>
+                ) : (
+                  <div className="flex items-center gap-3 ml-4 pl-4 border-l border-white/10">
+                    <button 
+                      onClick={() => openAuth('login')}
+                      className="text-slate-300 hover:text-white text-sm font-medium transition-colors hover:bg-white/5 px-3 py-2 rounded-lg"
+                    >
+                      Log In
+                    </button>
+                    <button 
+                      onClick={() => openAuth('signup')}
+                      className="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2.5 rounded-full text-sm font-bold transition-all shadow-lg shadow-blue-500/20 hover:shadow-blue-500/40 hover:-translate-y-0.5 active:translate-y-0"
+                    >
+                      Sign Up
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -109,14 +277,50 @@ const App: React.FC = () => {
           <div className="md:hidden bg-slate-900 border-b border-slate-800">
             <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
               <a href="#home" className="text-slate-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium">Home</a>
-              <a href="#about" className="text-slate-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium">About Us</a>
+              <a href="#about" className="text-slate-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium">About</a>
               <a href="#services" className="text-slate-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium">Services</a>
-              <a href="#faq" className="text-slate-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium">FAQ</a>
               <a href="https://kasilyfstyle.com" className="text-blue-400 hover:text-blue-300 block px-3 py-2 rounded-md text-base font-medium">Visit KasiLyf</a>
+              
+              <div className="border-t border-slate-800 mt-4 pt-4 pb-2">
+                 {user ? (
+                   <div className="px-3 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                          <div className="h-8 w-8 rounded-full bg-blue-600 flex items-center justify-center text-xs font-bold text-white">
+                             {user.name[0]}
+                          </div>
+                          <span className="text-white font-medium">{user.name}</span>
+                      </div>
+                      <button onClick={handleLogout} className="text-slate-400 hover:text-white text-sm">Sign Out</button>
+                   </div>
+                 ) : (
+                   <div className="grid grid-cols-2 gap-3 px-3">
+                       <button 
+                         onClick={() => { openAuth('login'); setMobileMenuOpen(false); }}
+                         className="text-center py-2.5 text-slate-300 font-medium hover:bg-white/5 rounded-xl border border-white/10"
+                       >
+                         Log In
+                       </button>
+                       <button 
+                         onClick={() => { openAuth('signup'); setMobileMenuOpen(false); }}
+                         className="text-center py-2.5 bg-blue-600 text-white font-bold hover:bg-blue-500 rounded-xl shadow-lg shadow-blue-500/20"
+                       >
+                         Sign Up
+                       </button>
+                   </div>
+                 )}
+              </div>
             </div>
           </div>
         )}
       </nav>
+
+      {/* Auth Modal */}
+      <AuthModal 
+        isOpen={isAuthModalOpen} 
+        onClose={() => setIsAuthModalOpen(false)} 
+        onLogin={handleLogin}
+        initialView={authMode}
+      />
 
       {/* Hero Section */}
       <div id="home" className="relative pt-40 pb-20 sm:pt-48 sm:pb-32 overflow-hidden z-10">
@@ -139,34 +343,121 @@ const App: React.FC = () => {
           
           <div className="flex flex-col sm:flex-row justify-center gap-5">
              <a href="#services" className="px-8 py-4 bg-white text-slate-950 rounded-full font-bold hover:bg-blue-50 transition-all hover:scale-105 shadow-[0_0_20px_rgba(255,255,255,0.3)]">
-               Our Services
+               Explore Services
              </a>
-             <a href="https://kasilyfstyle.com" target="_blank" rel="noopener noreferrer" className="px-8 py-4 bg-slate-900/50 text-white border border-slate-700 hover:border-blue-500/50 rounded-full font-bold hover:bg-slate-800 transition-all hover:scale-105 backdrop-blur-md">
-               Shop KasiLyf
-             </a>
+             <button onClick={() => !user ? openAuth('signup') : document.getElementById('vision')?.scrollIntoView()} className="px-8 py-4 bg-slate-900/50 text-white border border-slate-700 hover:border-blue-500/50 rounded-full font-bold hover:bg-slate-800 transition-all hover:scale-105 backdrop-blur-md">
+               {user ? 'Use AI Tools' : 'Create Account'}
+             </button>
           </div>
 
-          {/* Feature Grid */}
-          <div id="services" className="mt-32 grid grid-cols-1 md:grid-cols-3 gap-6 text-left">
-             {[
-               { title: "Procurement & Supply", desc: "Reliable sourcing of household goods, FMCG, beverages, and general trade supplies across South Africa.", delay: "0" },
-               { title: "Custom Branding", desc: "Unique identity solutions including engraved glasses, merchandise printing, and packaging.", delay: "100" },
-               { title: "Strategic Sourcing", desc: "Handling bulk orders, tenders, and hard-to-find stock for businesses, events, and retail.", delay: "200" }
-             ].map((feature, i) => (
-               <div key={i} className="group relative p-8 rounded-3xl bg-slate-900/40 border border-white/5 hover:border-blue-500/30 transition-all duration-500 hover:bg-slate-800/60 overflow-hidden">
-                 <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-                 <div className="relative z-10">
-                    <div className="h-12 w-12 bg-slate-800 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 group-hover:bg-blue-500/20 transition-all duration-300">
-                      <CheckCircleIcon className="h-6 w-6 text-blue-400 group-hover:text-blue-300" />
-                    </div>
-                    <h3 className="text-xl font-semibold text-white mb-3">{feature.title}</h3>
-                    <p className="text-slate-400 leading-relaxed">{feature.desc}</p>
+          {/* Interactive Services Section */}
+          <div id="services" className="mt-32">
+            <div className="flex flex-wrap justify-center gap-2 mb-12">
+               {categories.map((category) => (
+                 <button
+                   key={category}
+                   onClick={() => setActiveCategory(category)}
+                   className={`px-5 py-2.5 rounded-full text-sm font-medium transition-all duration-300 ${
+                     activeCategory === category 
+                       ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/25 scale-105' 
+                       : 'bg-slate-800/50 text-slate-400 hover:bg-slate-800 hover:text-white border border-white/5'
+                   }`}
+                 >
+                   {category}
+                 </button>
+               ))}
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 text-left">
+               {filteredServices.map((service, i) => (
+                 <div key={i} className="group relative p-8 rounded-3xl bg-slate-900/40 border border-white/5 hover:border-blue-500/30 transition-all duration-500 hover:bg-slate-800/60 overflow-hidden animate-fade-in-up" style={{ animationDelay: `${i * 50}ms` }}>
+                   <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                   <div className="relative z-10">
+                      <div className="h-12 w-12 bg-slate-800 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 group-hover:bg-blue-500/20 transition-all duration-300 text-blue-400 group-hover:text-blue-300">
+                        {service.icon}
+                      </div>
+                      <div className="text-xs font-semibold text-blue-400 mb-2 uppercase tracking-wider">{service.category}</div>
+                      <h3 className="text-xl font-bold text-white mb-3">{service.title}</h3>
+                      <p className="text-slate-400 leading-relaxed text-sm">{service.desc}</p>
+                   </div>
                  </div>
-               </div>
-             ))}
+               ))}
+            </div>
           </div>
         </div>
       </div>
+
+      {/* Track Order Section */}
+      <section id="track" className="relative py-16 z-10">
+         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="glass-panel rounded-3xl p-8 md:p-12 border border-white/10 shadow-2xl">
+              <div className="text-center mb-8">
+                <h2 className="text-3xl font-bold text-white mb-3">Track Your Shipment</h2>
+                <p className="text-slate-400">Enter your order ID below to check the current status of your delivery.</p>
+              </div>
+
+              <form onSubmit={handleTrackOrder} className="max-w-md mx-auto relative mb-12">
+                 <div className="relative">
+                   <input 
+                     type="text" 
+                     value={trackId}
+                     onChange={(e) => setTrackId(e.target.value)}
+                     placeholder="e.g. SIM-123456" 
+                     className="w-full bg-slate-900/80 border border-slate-700 text-white rounded-full py-4 pl-6 pr-14 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all text-center placeholder-slate-500 tracking-wider"
+                   />
+                   <button 
+                     type="submit"
+                     disabled={isTracking}
+                     className="absolute right-2 top-2 bottom-2 bg-blue-600 hover:bg-blue-500 text-white p-2.5 rounded-full transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                   >
+                     {isTracking ? (
+                       <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                     ) : (
+                       <MagnifyingGlassIcon className="h-5 w-5" />
+                     )}
+                   </button>
+                 </div>
+              </form>
+
+              {trackingResult && (
+                <div className="animate-fade-in">
+                   {trackingResult.step > 0 ? (
+                      <div className="bg-slate-900/50 rounded-2xl p-6 border border-white/5">
+                         <div className="flex items-center justify-between mb-8 relative">
+                            {/* Progress Bar Line */}
+                            <div className="absolute left-0 right-0 top-1/2 h-0.5 bg-slate-700 -z-10"></div>
+                            <div className={`absolute left-0 top-1/2 h-0.5 bg-blue-500 -z-10 transition-all duration-1000`} style={{ width: `${((trackingResult.step - 1) / 2) * 100}%` }}></div>
+
+                            {/* Steps */}
+                            {['Processing', 'In Transit', 'Delivered'].map((label, idx) => {
+                               const stepNum = idx + 1;
+                               const isActive = trackingResult.step >= stepNum;
+                               return (
+                                 <div key={label} className="flex flex-col items-center gap-2 bg-slate-900 px-2">
+                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all duration-500 ${isActive ? 'bg-blue-600 border-blue-600 text-white' : 'bg-slate-800 border-slate-700 text-slate-500'}`}>
+                                       {isActive ? <CheckCircleIcon className="w-5 h-5" /> : <span className="text-xs">{stepNum}</span>}
+                                    </div>
+                                    <span className={`text-xs font-medium ${isActive ? 'text-blue-300' : 'text-slate-500'}`}>{label}</span>
+                                 </div>
+                               )
+                            })}
+                         </div>
+                         <div className="text-center">
+                            <h3 className="text-xl font-bold text-white mb-1">{trackingResult.status}</h3>
+                            <p className="text-slate-400 text-sm">{trackingResult.message}</p>
+                         </div>
+                      </div>
+                   ) : (
+                      <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 text-center">
+                         <p className="text-red-300 font-medium">{trackingResult.status}</p>
+                         <p className="text-red-400/70 text-sm mt-1">{trackingResult.message}</p>
+                      </div>
+                   )}
+                </div>
+              )}
+            </div>
+         </div>
+      </section>
 
       {/* About Us Section */}
       <section id="about" className="relative py-24 z-10 bg-slate-900/30">
@@ -323,7 +614,7 @@ const App: React.FC = () => {
       </footer>
 
       {/* Floating Chat */}
-      <ChatWidget />
+      <ChatWidget user={user} />
     </div>
   );
 };

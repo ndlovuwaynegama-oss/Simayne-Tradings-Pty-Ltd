@@ -17,3 +17,8 @@ export enum AppSection {
   VISION = 'vision',
   CONTACT = 'contact'
 }
+
+export interface User {
+  name: string;
+  email: string;
+}

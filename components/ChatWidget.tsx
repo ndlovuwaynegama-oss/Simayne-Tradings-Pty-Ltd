@@ -1,10 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Chat } from "@google/genai";
 import { createChatSession, sendMessageStream } from '../services/geminiService';
-import { ChatMessage } from '../types';
+import { ChatMessage, User } from '../types';
 import { ChatIcon, XIcon, SendIcon, SparklesIcon } from './Icons';
 
-const ChatWidget: React.FC = () => {
+interface ChatWidgetProps {
+  user?: User | null;
+}
+
+const ChatWidget: React.FC<ChatWidgetProps> = ({ user }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([
     { role: 'model', text: 'Hello! Welcome to Simayne Trading. Need help sourcing a product, a quote for bulk supply, or custom branding ideas?', timestamp: Date.now() }
@@ -13,6 +17,7 @@ const ChatWidget: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const chatSessionRef = useRef<Chat | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const hasPersonalized = useRef(false);
 
   useEffect(() => {
     // Initialize chat session once
@@ -20,6 +25,17 @@ const ChatWidget: React.FC = () => {
       chatSessionRef.current = createChatSession();
     }
   }, []);
+
+  useEffect(() => {
+    // Update welcome message if user logs in and we haven't personalized yet
+    if (user && !hasPersonalized.current && messages.length === 1) {
+       setMessages(prev => [{
+           ...prev[0],
+           text: `Hello ${user.name.split(' ')[0]}! Welcome back to Simayne Trading. How can I help you with your sourcing or branding needs today?`
+       }]);
+       hasPersonalized.current = true;
+    }
+  }, [user, messages.length]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
