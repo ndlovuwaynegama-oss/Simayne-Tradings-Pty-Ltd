@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { XIcon, UserIcon, LockClosedIcon, MailIcon, SparklesIcon } from './Icons';
 import { User } from '../types';
 
@@ -17,8 +17,30 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLogin, initial
   const [formData, setFormData] = useState({
     name: '',
     email: '',
-    password: ''
+    password: '',
+    confirmPassword: ''
   });
+
+  // Reset view mode when modal opens or initialView changes
+  useEffect(() => {
+    if (isOpen) {
+      setIsLogin(initialView === 'login');
+      setError(null);
+      // Reset form data on open/view switch if needed, keeping simple for now
+    }
+  }, [isOpen, initialView]);
+
+  const getPasswordStrength = (pass: string) => {
+    if (!pass) return 0;
+    let score = 0;
+    if (pass.length >= 6) score++;
+    if (pass.length >= 10) score++;
+    if (/[0-9]/.test(pass)) score++;
+    if (/[^A-Za-z0-9]/.test(pass)) score++; // Special char
+    return score;
+  };
+
+  const passwordStrength = getPasswordStrength(formData.password);
 
   if (!isOpen) return null;
 
@@ -27,11 +49,29 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLogin, initial
     setError(null);
     setLoading(true);
 
-    // Simple validation
+    // Validation
     if (!formData.email || !formData.password || (!isLogin && !formData.name)) {
-      setError("Please fill in all fields.");
+      setError("Please fill in all required fields.");
       setLoading(false);
       return;
+    }
+
+    if (!isLogin) {
+        if (!formData.confirmPassword) {
+            setError("Please confirm your password.");
+            setLoading(false);
+            return;
+        }
+        if (formData.password !== formData.confirmPassword) {
+            setError("Passwords do not match.");
+            setLoading(false);
+            return;
+        }
+        if (passwordStrength < 2) {
+           setError("Please choose a stronger password.");
+           setLoading(false);
+           return;
+        }
     }
 
     // Simulate API call
@@ -80,7 +120,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLogin, initial
         <div className="p-8">
             <form onSubmit={handleSubmit} className="space-y-4">
                 {!isLogin && (
-                    <div className="space-y-1">
+                    <div className="space-y-1 animate-fade-in">
                         <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider ml-1">Full Name</label>
                         <div className="relative">
                             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -127,10 +167,55 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLogin, initial
                             className="w-full bg-slate-800/50 border border-slate-700 text-white rounded-xl py-3 pl-10 pr-4 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all placeholder-slate-500"
                         />
                     </div>
+                    
+                    {/* Password Strength Indicator */}
+                    {!isLogin && formData.password && (
+                        <div className="pt-2 animate-fade-in">
+                            <div className="flex gap-1 h-1.5 mb-1">
+                                {[1, 2, 3, 4].map((step) => (
+                                    <div 
+                                        key={step}
+                                        className={`h-full flex-1 rounded-full transition-colors duration-300 ${
+                                            step <= passwordStrength 
+                                                ? (passwordStrength <= 1 ? 'bg-red-500' : passwordStrength <= 3 ? 'bg-yellow-500' : 'bg-green-500')
+                                                : 'bg-slate-700'
+                                        }`}
+                                    />
+                                ))}
+                            </div>
+                            <div className="flex justify-between items-center px-1">
+                                <span className="text-[10px] text-slate-500">Min 6 chars</span>
+                                <span className={`text-[10px] font-medium transition-colors ${
+                                    passwordStrength <= 1 ? 'text-red-400' : passwordStrength <= 3 ? 'text-yellow-400' : 'text-green-400'
+                                }`}>
+                                    {passwordStrength <= 1 ? 'Weak' : passwordStrength <= 3 ? 'Fair' : 'Strong'}
+                                </span>
+                            </div>
+                        </div>
+                    )}
                 </div>
 
+                {/* Confirm Password Field */}
+                {!isLogin && (
+                    <div className="space-y-1 animate-fade-in">
+                        <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider ml-1">Confirm Password</label>
+                        <div className="relative">
+                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <LockClosedIcon className="h-5 w-5 text-slate-500" />
+                            </div>
+                            <input
+                                type="password"
+                                placeholder="••••••••"
+                                value={formData.confirmPassword}
+                                onChange={(e) => setFormData({...formData, confirmPassword: e.target.value})}
+                                className="w-full bg-slate-800/50 border border-slate-700 text-white rounded-xl py-3 pl-10 pr-4 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all placeholder-slate-500"
+                            />
+                        </div>
+                    </div>
+                )}
+
                 {error && (
-                    <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-300 text-xs text-center">
+                    <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-300 text-xs text-center animate-pulse">
                         {error}
                     </div>
                 )}
@@ -155,7 +240,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLogin, initial
                 <p className="text-slate-400 text-sm">
                     {isLogin ? "Don't have an account?" : "Already have an account?"}
                     <button 
-                        onClick={() => { setIsLogin(!isLogin); setError(null); }}
+                        onClick={() => { setIsLogin(!isLogin); setError(null); setFormData({...formData, confirmPassword: ''}); }}
                         className="ml-2 text-blue-400 hover:text-blue-300 font-medium transition-colors"
                     >
                         {isLogin ? 'Sign up' : 'Log in'}
