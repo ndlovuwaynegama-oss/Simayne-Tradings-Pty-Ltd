@@ -3,6 +3,24 @@ import { analyzeImage } from '../services/geminiService';
 import { ImageAnalysisState } from '../types';
 import { UploadIcon, SparklesIcon } from './Icons';
 
+const EXAMPLES = [
+  { 
+    label: 'Tech Product', 
+    url: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=600&q=80',
+    desc: 'Source electronics'
+  },
+  { 
+    label: 'Corporate Merch', 
+    url: 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=600&q=80',
+    desc: 'Branding ideas'
+  },
+  { 
+    label: 'Bulk Supply', 
+    url: 'https://images.unsplash.com/photo-1602143407151-7111542de6e8?auto=format&fit=crop&w=600&q=80',
+    desc: 'Wholesale stock'
+  }
+];
+
 const ImageAnalyzer: React.FC = () => {
   const [state, setState] = useState<ImageAnalysisState>({
     isAnalyzing: false,
@@ -34,6 +52,15 @@ const ImageAnalyzer: React.FC = () => {
     reader.readAsDataURL(file);
   };
 
+  const handleExampleClick = (url: string) => {
+    setState({
+      isAnalyzing: false,
+      result: null,
+      error: null,
+      imageUrl: url,
+    });
+  };
+
   const handleAnalyze = async () => {
     if (!state.imageUrl) return;
 
@@ -41,7 +68,10 @@ const ImageAnalyzer: React.FC = () => {
 
     try {
       // Extract base64 data and mime type
+      // This works for both Data URLs (uploads) and HTTP URLs (examples)
       const response = await fetch(state.imageUrl);
+      if (!response.ok) throw new Error("Failed to retrieve image data");
+      
       const blob = await response.blob();
       
       const reader = new FileReader();
@@ -57,6 +87,7 @@ const ImageAnalyzer: React.FC = () => {
           }
       }
     } catch (error) {
+      console.error(error);
       setState(prev => ({ ...prev, isAnalyzing: false, error: "Failed to process image data." }));
     }
   };
@@ -66,7 +97,7 @@ const ImageAnalyzer: React.FC = () => {
   };
 
   return (
-    <div id="vision" className="w-full max-w-6xl mx-auto px-4">
+    <div className="w-full max-w-6xl mx-auto px-4">
       <div className="glass-panel rounded-[2rem] p-8 md:p-14 relative overflow-hidden shadow-2xl shadow-blue-900/20 ring-1 ring-white/10">
         
         {/* Decorative elements */}
@@ -150,6 +181,26 @@ const ImageAnalyzer: React.FC = () => {
                  {state.error}
                </div>
             )}
+
+            {/* Example Selection */}
+            <div className="border-t border-white/10 pt-6">
+               <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-4">No image? Try an example:</p>
+               <div className="grid grid-cols-3 gap-3">
+                  {EXAMPLES.map((ex, i) => (
+                    <button 
+                      key={i}
+                      onClick={() => handleExampleClick(ex.url)}
+                      className={`group relative rounded-xl overflow-hidden aspect-square border-2 transition-all ${state.imageUrl === ex.url ? 'border-blue-500 ring-2 ring-blue-500/30' : 'border-slate-800 hover:border-slate-600'}`}
+                      disabled={state.isAnalyzing}
+                    >
+                      <img src={ex.url} alt={ex.label} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent flex flex-col justify-end p-2 opacity-90">
+                         <span className="text-[10px] font-bold text-white leading-tight">{ex.label}</span>
+                      </div>
+                    </button>
+                  ))}
+               </div>
+            </div>
           </div>
 
           {/* Right Column: Results */}

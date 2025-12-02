@@ -1,9 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import ImageAnalyzer from './components/ImageAnalyzer';
 import ChatWidget from './components/ChatWidget';
 import AuthModal from './components/AuthModal';
 import { User } from './types';
-import { SparklesIcon, CheckCircleIcon, ChevronDownIcon, LightBulbIcon, ShieldCheckIcon, GlobeIcon, CubeIcon, TruckIcon, BrushIcon, TagIcon, UserIcon, LogOutIcon, MagnifyingGlassIcon } from './components/Icons';
+import { 
+  SparklesIcon, CheckCircleIcon, ChevronDownIcon, LightBulbIcon, ShieldCheckIcon, 
+  GlobeIcon, CubeIcon, TruckIcon, BrushIcon, TagIcon, UserIcon, LogOutIcon, 
+  MagnifyingGlassIcon, WhatsAppIcon, DownloadIcon, FileTextIcon, StarIcon, BriefcaseIcon,
+  SendIcon
+} from './components/Icons';
+
+// --- Sub-components ---
 
 const FAQItem = ({ question, answer }: { question: string, answer: string }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -28,43 +35,159 @@ const FAQItem = ({ question, answer }: { question: string, answer: string }) => 
   );
 };
 
+const BeforeAfterCard = ({ before, after, title, description }: { before: string, after: string, title: string, description: string }) => {
+  const [sliderPosition, setSliderPosition] = useState(50);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerWidth, setContainerWidth] = useState(0);
+
+  useEffect(() => {
+    if (containerRef.current) {
+      setContainerWidth(containerRef.current.offsetWidth);
+    }
+    const handleResize = () => {
+      if (containerRef.current) {
+        setContainerWidth(containerRef.current.offsetWidth);
+      }
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const handleMove = (clientX: number) => {
+    if (containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      const x = Math.max(0, Math.min(clientX - rect.left, rect.width));
+      const percent = Math.max(0, Math.min((x / rect.width) * 100, 100));
+      setSliderPosition(percent);
+    }
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => handleMove(e.clientX);
+  const handleTouchMove = (e: React.TouchEvent) => handleMove(e.touches[0].clientX);
+
+  return (
+    <div className="glass-panel p-6 rounded-3xl border border-white/5 group hover:border-blue-500/30 transition-colors">
+       <div className="flex items-center gap-3 mb-4">
+          <div className="p-2 bg-blue-500/10 rounded-lg text-blue-400">
+             <BrushIcon className="w-5 h-5" />
+          </div>
+          <div>
+            <h3 className="text-lg font-bold text-white leading-none">{title}</h3>
+            <p className="text-slate-400 text-xs mt-1">{description}</p>
+          </div>
+       </div>
+       
+       <div 
+         ref={containerRef}
+         className="relative w-full h-64 rounded-2xl overflow-hidden cursor-ew-resize select-none shadow-xl"
+         onMouseMove={handleMouseMove}
+         onTouchMove={handleTouchMove}
+       >
+         {/* After Image (Background) */}
+         <img src={after} alt="After" className="absolute inset-0 w-full h-full object-cover" />
+         <div className="absolute top-3 right-3 bg-blue-600/90 backdrop-blur text-white text-[10px] font-bold px-2 py-1 rounded shadow-lg z-10 tracking-wider">AFTER</div>
+
+         {/* Before Image (Clipped) */}
+         <div 
+           className="absolute inset-0 overflow-hidden border-r border-white/20" 
+           style={{ width: `${sliderPosition}%` }}
+         >
+           <img 
+             src={before} 
+             alt="Before" 
+             className="absolute top-0 left-0 h-full max-w-none object-cover" 
+             style={{ width: containerWidth || '100%' }} 
+           />
+           <div className="absolute inset-0 bg-black/10"></div>
+           <div className="absolute top-3 left-3 bg-slate-800/90 backdrop-blur text-white text-[10px] font-bold px-2 py-1 rounded shadow-lg z-10 tracking-wider">BEFORE</div>
+         </div>
+
+         {/* Slider Handle */}
+         <div 
+           className="absolute top-0 bottom-0 w-1 bg-white cursor-ew-resize shadow-[0_0_20px_rgba(0,0,0,0.5)] z-20 flex items-center justify-center pointer-events-none"
+           style={{ left: `${sliderPosition}%` }}
+         >
+            <div className="w-8 h-8 bg-white rounded-full shadow-xl flex items-center justify-center transform -translate-x-1/2">
+               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-4 h-4 text-blue-600">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 15L12 18.75 15.75 15m-7.5-6L12 5.25 15.75 9" className="rotate-90 origin-center" />
+               </svg>
+            </div>
+         </div>
+       </div>
+       
+       <div className="mt-4 text-center">
+          <p className="text-[10px] uppercase tracking-widest text-slate-500 font-bold">Drag slider to compare</p>
+       </div>
+    </div>
+  )
+}
+
+// --- Main Component ---
+
 const App: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeCategory, setActiveCategory] = useState("All");
+  const [activeCatalogueFilter, setActiveCatalogueFilter] = useState("PPE");
   const [user, setUser] = useState<User | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
+  const [rotatingTextIndex, setRotatingTextIndex] = useState(0);
   
   // Tracking State
   const [trackId, setTrackId] = useState('');
   const [trackingResult, setTrackingResult] = useState<{status: string, message: string, step: number} | null>(null);
   const [isTracking, setIsTracking] = useState(false);
 
+  // Sourcing Form State
+  const [sourcingForm, setSourcingForm] = useState({ item: '', qty: '', urgency: '', location: '' });
+
+  // Rotating Tagline
+  const taglines = ["We Source It.", "We Brand It.", "We Deliver It.", "Simayne Trading — Done Right."];
+  
   useEffect(() => {
-    // Check for existing session
-    const storedUser = localStorage.getItem('simayne_user');
+    const interval = setInterval(() => {
+      setRotatingTextIndex((prev) => (prev + 1) % taglines.length);
+    }, 3000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    // Check for existing session in both localStorage and sessionStorage
+    const storedUser = localStorage.getItem('simayne_user') || sessionStorage.getItem('simayne_user');
     if (storedUser) {
       try {
         setUser(JSON.parse(storedUser));
       } catch (e) {
         localStorage.removeItem('simayne_user');
+        sessionStorage.removeItem('simayne_user');
       }
     }
   }, []);
 
-  const handleLogin = (newUser: User) => {
+  const handleLogin = (newUser: User, rememberMe: boolean = false) => {
     setUser(newUser);
-    localStorage.setItem('simayne_user', JSON.stringify(newUser));
+    if (rememberMe) {
+        localStorage.setItem('simayne_user', JSON.stringify(newUser));
+    } else {
+        sessionStorage.setItem('simayne_user', JSON.stringify(newUser));
+    }
   };
 
   const handleLogout = () => {
     setUser(null);
     localStorage.removeItem('simayne_user');
+    sessionStorage.removeItem('simayne_user');
   };
 
   const openAuth = (mode: 'login' | 'signup') => {
     setAuthMode(mode);
     setIsAuthModalOpen(true);
+  };
+
+  const openWhatsApp = (msg: string) => {
+    const phone = "27123456789"; // Replace with real number
+    const encoded = encodeURIComponent(msg);
+    window.open(`https://wa.me/${phone}?text=${encoded}`, '_blank');
   };
 
   const handleTrackOrder = (e: React.FormEvent) => {
@@ -113,14 +236,6 @@ const App: React.FC = () => {
     { 
       question: "Can I order in bulk for my business?", 
       answer: "Absolutely. We are B2B specialists capable of handling large wholesale orders, tenders, and supply contracts for hospitality, retail, and corporate clients." 
-    },
-    { 
-      question: "What is Kasilyf Style?", 
-      answer: "Kasilyf Style is our own lifestyle brand available at kasilyfstyle.com, featuring curated fashion and products that reflect our commitment to quality and style." 
-    },
-    { 
-      question: "Do you support small businesses and local brands?", 
-      answer: "Yes! We have an entrepreneurial mindset and work closely with small manufacturers and suppliers to support local brands while offering competitive pricing." 
     }
   ];
 
@@ -140,28 +255,10 @@ const App: React.FC = () => {
       icon: <TruckIcon className="h-6 w-6" />
     },
     { 
-      category: "Procurement & Supply", 
-      title: "General Trade Supplies", 
-      desc: "Sourcing general goods, tools, and equipment for various business needs.",
-      icon: <TagIcon className="h-6 w-6" />
-    },
-    { 
       category: "Custom Branding", 
       title: "Engraved Glassware", 
       desc: "Premium custom engraving on glasses for gifts, events, or corporate branding.",
       icon: <BrushIcon className="h-6 w-6" />
-    },
-    { 
-      category: "Custom Branding", 
-      title: "Merchandise Printing", 
-      desc: "High-quality printing on clothing, caps, and promotional items.",
-      icon: <SparklesIcon className="h-6 w-6" />
-    },
-    { 
-      category: "Custom Branding", 
-      title: "Custom Packaging", 
-      desc: "Tailored packaging solutions to elevate your product presentation.",
-      icon: <CubeIcon className="h-6 w-6" />
     },
     { 
       category: "Strategic Sourcing", 
@@ -171,17 +268,33 @@ const App: React.FC = () => {
     },
     { 
       category: "Strategic Sourcing", 
-      title: "White Labeling", 
-      desc: "Helping you create your own product lines with our manufacturing partners.",
-      icon: <TagIcon className="h-6 w-6" />
-    },
-    { 
-      category: "Strategic Sourcing", 
       title: "Tender Supply", 
       desc: "Professional procurement support for government and private tenders.",
       icon: <CheckCircleIcon className="h-6 w-6" />
     }
   ];
+
+  const catalogueData = {
+    "PPE": [
+      { name: "Safety Helmets", img: "⛑️", desc: "Industrial grade hard hats, various colors." },
+      { name: "Reflective Vests", img: "🦺", desc: "High-visibility vests with custom logo options." },
+      { name: "Safety Boots", img: "🥾", desc: "Steel-toe cap boots for heavy duty work." },
+    ],
+    "Cleaning": [
+      { name: "Industrial Sanitizer", img: "🧴", desc: "25L Bulk Sanitizer 70% Alcohol." },
+      { name: "Paper Towels", img: "🧻", desc: "Bulk packs for office and industrial use." },
+      { name: "Cleaning Chems", img: "🧪", desc: "Strong degreasers and multi-purpose cleaners." },
+    ],
+    "Branding": [
+      { name: "Custom Glassware", img: "🥂", desc: "Laser engraved wine & whiskey glasses." },
+      { name: "Branded T-Shirts", img: "👕", desc: "Screen printed corporate apparel." },
+      { name: "Custom Caps", img: "🧢", desc: "Embroidered caps with your company logo." },
+    ],
+    "Beverages": [
+      { name: "Bottled Water", img: "💧", desc: "Branded or unbranded bulk water supply." },
+      { name: "Soft Drinks", img: "🥤", desc: "Wholesale crates of popular soft drinks." },
+    ]
+  };
 
   const filteredServices = activeCategory === "All" 
     ? services 
@@ -202,7 +315,7 @@ const App: React.FC = () => {
       <nav className="fixed top-0 w-full z-40 bg-slate-950/70 backdrop-blur-xl border-b border-white/5">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-20">
-            <div className="flex items-center gap-3 group cursor-pointer">
+            <a href="#home" className="flex items-center gap-3 group cursor-pointer">
               <div className="h-10 w-10 relative">
                  <div className="absolute inset-0 bg-blue-500 blur-lg opacity-40 group-hover:opacity-60 transition-opacity"></div>
                  <div className="relative h-full w-full bg-gradient-to-tr from-slate-800 to-slate-900 border border-slate-700 rounded-xl flex items-center justify-center shadow-xl">
@@ -210,21 +323,20 @@ const App: React.FC = () => {
                  </div>
               </div>
               <span className="text-xl font-bold tracking-tight text-white group-hover:text-blue-200 transition-colors">Simayne Trading</span>
-            </div>
+            </a>
             
-            <div className="hidden md:block">
-              <div className="ml-10 flex items-center space-x-6">
+            <div className="hidden lg:block">
+              <div className="ml-10 flex items-center space-x-1">
                 <a href="#home" className="text-slate-300 hover:text-white transition-colors text-sm font-medium hover:bg-white/5 px-3 py-2 rounded-lg">Home</a>
-                <a href="#about" className="text-slate-300 hover:text-white transition-colors text-sm font-medium hover:bg-white/5 px-3 py-2 rounded-lg">About</a>
+                <a href="#catalogue" className="text-slate-300 hover:text-white transition-colors text-sm font-medium hover:bg-white/5 px-3 py-2 rounded-lg">Catalogue</a>
                 <a href="#services" className="text-slate-300 hover:text-white transition-colors text-sm font-medium hover:bg-white/5 px-3 py-2 rounded-lg">Services</a>
+                <a href="#track" className="text-slate-300 hover:text-white transition-colors text-sm font-medium hover:bg-white/5 px-3 py-2 rounded-lg">Track</a>
                 <a href="#vision" className="text-slate-300 hover:text-white transition-colors text-sm font-medium hover:bg-white/5 px-3 py-2 rounded-lg">AI Tools</a>
-                <a href="https://kasilyfstyle.com" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 text-sm font-medium px-2">
-                  Shop KasiLyf
-                </a>
+                <a href="#about" className="text-slate-300 hover:text-white transition-colors text-sm font-medium hover:bg-white/5 px-3 py-2 rounded-lg">About</a>
                 
                 {/* User Auth Section */}
                 {user ? (
-                   <div className="flex items-center gap-4 pl-4 border-l border-white/10">
+                   <div className="flex items-center gap-4 pl-4 ml-2 border-l border-white/10">
                       <div className="flex items-center gap-2">
                          <div className="h-8 w-8 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-xs font-bold text-white shadow-lg">
                            {user.name.split(' ').map(n => n[0]).join('').substring(0,2).toUpperCase()}
@@ -258,7 +370,7 @@ const App: React.FC = () => {
               </div>
             </div>
 
-            <div className="-mr-2 flex md:hidden">
+            <div className="-mr-2 flex lg:hidden">
               <button
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
                 className="inline-flex items-center justify-center p-2 rounded-md text-slate-400 hover:text-white hover:bg-slate-800 focus:outline-none"
@@ -274,12 +386,13 @@ const App: React.FC = () => {
         
         {/* Mobile menu */}
         {mobileMenuOpen && (
-          <div className="md:hidden bg-slate-900 border-b border-slate-800">
+          <div className="lg:hidden bg-slate-900 border-b border-slate-800">
             <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
-              <a href="#home" className="text-slate-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium">Home</a>
-              <a href="#about" className="text-slate-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium">About</a>
-              <a href="#services" className="text-slate-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium">Services</a>
-              <a href="https://kasilyfstyle.com" className="text-blue-400 hover:text-blue-300 block px-3 py-2 rounded-md text-base font-medium">Visit KasiLyf</a>
+              <a href="#home" onClick={() => setMobileMenuOpen(false)} className="text-slate-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium">Home</a>
+              <a href="#catalogue" onClick={() => setMobileMenuOpen(false)} className="text-slate-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium">Catalogue</a>
+              <a href="#services" onClick={() => setMobileMenuOpen(false)} className="text-slate-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium">Services</a>
+              <a href="#track" onClick={() => setMobileMenuOpen(false)} className="text-slate-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium">Track Order</a>
+              <a href="#about" onClick={() => setMobileMenuOpen(false)} className="text-slate-300 hover:text-white block px-3 py-2 rounded-md text-base font-medium">About</a>
               
               <div className="border-t border-slate-800 mt-4 pt-4 pb-2">
                  {user ? (
@@ -331,9 +444,10 @@ const App: React.FC = () => {
             Simayne Trading (Pty) Ltd
           </div>
           
-          <h1 className="text-5xl md:text-7xl font-bold tracking-tight mb-8 leading-tight">
-            <span className="block text-white drop-shadow-xl">Strategic Sourcing &</span>
-            <span className="gradient-text drop-shadow-2xl">Custom Branding</span>
+          <h1 className="text-5xl md:text-7xl font-bold tracking-tight mb-8 leading-tight h-[1.2em]">
+            <span key={rotatingTextIndex} className="block text-white drop-shadow-xl animate-fade-in">
+              {taglines[rotatingTextIndex]}
+            </span>
           </h1>
           
           <p className="mt-6 max-w-2xl mx-auto text-lg md:text-xl text-slate-400 mb-12 leading-relaxed">
@@ -342,35 +456,174 @@ const App: React.FC = () => {
           </p>
           
           <div className="flex flex-col sm:flex-row justify-center gap-5">
-             <a href="#services" className="px-8 py-4 bg-white text-slate-950 rounded-full font-bold hover:bg-blue-50 transition-all hover:scale-105 shadow-[0_0_20px_rgba(255,255,255,0.3)]">
-               Explore Services
-             </a>
-             <button onClick={() => !user ? openAuth('signup') : document.getElementById('vision')?.scrollIntoView()} className="px-8 py-4 bg-slate-900/50 text-white border border-slate-700 hover:border-blue-500/50 rounded-full font-bold hover:bg-slate-800 transition-all hover:scale-105 backdrop-blur-md">
-               {user ? 'Use AI Tools' : 'Create Account'}
+             <button onClick={() => openWhatsApp("Hi, I would like to request stock availability.")} className="px-8 py-4 bg-[#25D366] text-white rounded-full font-bold hover:bg-[#128C7E] transition-all hover:scale-105 shadow-[0_0_20px_rgba(37,211,102,0.3)] flex items-center justify-center gap-2">
+               <WhatsAppIcon className="w-5 h-5" />
+               Request Stock
              </button>
+             <a href="#catalogue" className="px-8 py-4 bg-slate-900/50 text-white border border-slate-700 hover:border-blue-500/50 rounded-full font-bold hover:bg-slate-800 transition-all hover:scale-105 backdrop-blur-md">
+               View Catalogue
+             </a>
           </div>
 
-          {/* Interactive Services Section */}
-          <div id="services" className="mt-32">
-            <div className="flex flex-wrap justify-center gap-2 mb-12">
-               {categories.map((category) => (
-                 <button
-                   key={category}
-                   onClick={() => setActiveCategory(category)}
-                   className={`px-5 py-2.5 rounded-full text-sm font-medium transition-all duration-300 ${
-                     activeCategory === category 
-                       ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/25 scale-105' 
-                       : 'bg-slate-800/50 text-slate-400 hover:bg-slate-800 hover:text-white border border-white/5'
-                   }`}
-                 >
-                   {category}
-                 </button>
-               ))}
-            </div>
+          {/* Live Stats */}
+          <div className="mt-20 grid grid-cols-2 md:grid-cols-4 gap-8 border-t border-white/5 pt-10">
+              <div className="text-center">
+                  <div className="text-3xl font-bold text-blue-400 mb-1">876+</div>
+                  <div className="text-sm text-slate-500">Items Supplied</div>
+              </div>
+              <div className="text-center">
+                  <div className="text-3xl font-bold text-purple-400 mb-1">22+</div>
+                  <div className="text-sm text-slate-500">Businesses Served</div>
+              </div>
+              <div className="text-center">
+                  <div className="text-3xl font-bold text-indigo-400 mb-1">14+</div>
+                  <div className="text-sm text-slate-500">Branding Projects</div>
+              </div>
+              <div className="text-center">
+                  <div className="text-3xl font-bold text-green-400 mb-1">100%</div>
+                  <div className="text-sm text-slate-500">On-Time Delivery</div>
+              </div>
+          </div>
+        </div>
+      </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 text-left">
+      {/* Product Catalogue */}
+      <section id="catalogue" className="py-24 relative bg-slate-900/50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+           <div className="text-center mb-16">
+              <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">Product Catalogue</h2>
+              <p className="text-slate-400 max-w-2xl mx-auto">Browse our most popular categories. Don't see what you need? Use the "We Can Source It" form below.</p>
+           </div>
+
+           {/* Tabs */}
+           <div className="flex flex-wrap justify-center gap-2 mb-12">
+               {Object.keys(catalogueData).map((cat) => (
+                   <button
+                     key={cat}
+                     onClick={() => setActiveCatalogueFilter(cat)}
+                     className={`px-6 py-2 rounded-full text-sm font-bold transition-all ${activeCatalogueFilter === cat ? 'bg-blue-600 text-white shadow-lg' : 'bg-slate-800 text-slate-400 hover:text-white'}`}
+                   >
+                     {cat}
+                   </button>
+               ))}
+           </div>
+
+           {/* Grid */}
+           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {catalogueData[activeCatalogueFilter as keyof typeof catalogueData].map((item, idx) => (
+                  <div key={idx} className="glass-panel p-6 rounded-3xl border border-white/5 hover:border-blue-500/30 transition-all group">
+                      <div className="text-6xl mb-6 text-center">{item.img}</div>
+                      <h3 className="text-xl font-bold text-white mb-2">{item.name}</h3>
+                      <p className="text-slate-400 text-sm mb-6">{item.desc}</p>
+                      <button 
+                        onClick={() => openWhatsApp(`Hi, I am interested in a quote for: ${item.name}`)}
+                        className="w-full py-3 bg-slate-800 hover:bg-[#25D366] hover:text-white text-slate-300 rounded-xl font-medium transition-colors flex items-center justify-center gap-2"
+                      >
+                         <WhatsAppIcon className="w-4 h-4" />
+                         Request Quote
+                      </button>
+                  </div>
+              ))}
+           </div>
+        </div>
+      </section>
+
+      {/* We Can Source It Form */}
+      <section id="sourcing" className="py-24 relative">
+          <div className="max-w-4xl mx-auto px-4">
+              <div className="glass-panel rounded-[2.5rem] p-8 md:p-16 border border-blue-500/20 shadow-2xl shadow-blue-900/20 bg-gradient-to-br from-slate-900 to-slate-950">
+                  <div className="text-center mb-10">
+                      <div className="inline-flex items-center justify-center p-3 bg-blue-500/10 rounded-xl mb-4">
+                         <GlobeIcon className="w-8 h-8 text-blue-400" />
+                      </div>
+                      <h2 className="text-3xl font-bold text-white mb-4">We Can Source It</h2>
+                      <p className="text-slate-400">Can't find what you're looking for? Tell us what you need, and we'll find it for you.</p>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                      <div className="space-y-2">
+                          <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Item Needed</label>
+                          <input 
+                            type="text" 
+                            className="w-full bg-slate-800/50 border border-slate-700 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-blue-500 outline-none" 
+                            placeholder="e.g. 500x Branded Notebooks"
+                            value={sourcingForm.item}
+                            onChange={(e) => setSourcingForm({...sourcingForm, item: e.target.value})}
+                          />
+                      </div>
+                      <div className="space-y-2">
+                          <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Quantity</label>
+                          <input 
+                             type="text" 
+                             className="w-full bg-slate-800/50 border border-slate-700 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-blue-500 outline-none" 
+                             placeholder="e.g. 500 units"
+                             value={sourcingForm.qty}
+                             onChange={(e) => setSourcingForm({...sourcingForm, qty: e.target.value})}
+                          />
+                      </div>
+                      <div className="space-y-2">
+                          <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Urgency</label>
+                          <select 
+                            className="w-full bg-slate-800/50 border border-slate-700 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                            value={sourcingForm.urgency}
+                            onChange={(e) => setSourcingForm({...sourcingForm, urgency: e.target.value})}
+                          >
+                             <option value="">Select Urgency</option>
+                             <option value="Standard">Standard (5-7 days)</option>
+                             <option value="Urgent">Urgent (2-3 days)</option>
+                             <option value="Immediate">Immediate (24hrs)</option>
+                          </select>
+                      </div>
+                      <div className="space-y-2">
+                          <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Delivery Location</label>
+                          <input 
+                             type="text" 
+                             className="w-full bg-slate-800/50 border border-slate-700 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-blue-500 outline-none" 
+                             placeholder="City / Area"
+                             value={sourcingForm.location}
+                             onChange={(e) => setSourcingForm({...sourcingForm, location: e.target.value})}
+                          />
+                      </div>
+                  </div>
+                  <button 
+                    onClick={() => openWhatsApp(`Sourcing Request:\nItem: ${sourcingForm.item}\nQty: ${sourcingForm.qty}\nUrgency: ${sourcingForm.urgency}\nLocation: ${sourcingForm.location}`)}
+                    className="w-full py-4 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl shadow-lg transition-transform hover:scale-[1.01] active:scale-[0.99] flex items-center justify-center gap-2"
+                  >
+                     <SendIcon className="w-5 h-5" />
+                     Send Request via WhatsApp
+                  </button>
+              </div>
+          </div>
+      </section>
+
+      {/* Services Grid */}
+      <section id="services" className="py-12">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+              <div className="flex flex-col md:flex-row justify-between items-end mb-12 border-b border-white/5 pb-8">
+                 <div>
+                    <h2 className="text-3xl font-bold text-white mb-2">Our Capabilities</h2>
+                    <p className="text-slate-400">Comprehensive services tailored to your business.</p>
+                 </div>
+                 <div className="flex gap-2 mt-4 md:mt-0">
+                    {categories.map((category) => (
+                        <button
+                        key={category}
+                        onClick={() => setActiveCategory(category)}
+                        className={`px-4 py-1.5 rounded-full text-xs font-medium transition-all duration-300 ${
+                            activeCategory === category 
+                            ? 'bg-white text-slate-900' 
+                            : 'bg-slate-800 text-slate-400 hover:text-white'
+                        }`}
+                        >
+                        {category}
+                        </button>
+                    ))}
+                 </div>
+              </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 text-left mb-16">
                {filteredServices.map((service, i) => (
-                 <div key={i} className="group relative p-8 rounded-3xl bg-slate-900/40 border border-white/5 hover:border-blue-500/30 transition-all duration-500 hover:bg-slate-800/60 overflow-hidden animate-fade-in-up" style={{ animationDelay: `${i * 50}ms` }}>
+                 <div key={i} className="group relative p-8 rounded-3xl bg-slate-900/40 border border-white/5 hover:border-blue-500/30 transition-all duration-500 hover:bg-slate-800/60 overflow-hidden">
                    <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
                    <div className="relative z-10">
                       <div className="h-12 w-12 bg-slate-800 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 group-hover:bg-blue-500/20 transition-all duration-300 text-blue-400 group-hover:text-blue-300">
@@ -383,12 +636,151 @@ const App: React.FC = () => {
                  </div>
                ))}
             </div>
+
+            {/* Before & After Branding Showcase */}
+            <div className="mt-20">
+               <div className="text-center mb-12">
+                  <h2 className="text-3xl font-bold text-white mb-2">Branding Transformations</h2>
+                  <p className="text-slate-400">See how we elevate standard products into premium branded assets.</p>
+               </div>
+               
+               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                  <BeforeAfterCard 
+                    title="Custom Glassware"
+                    description="From simple clear glass to premium laser-engraved branding."
+                    before="https://images.unsplash.com/photo-1577937927133-66ef06acdf18?auto=format&fit=crop&w=600&q=80"
+                    after="https://images.unsplash.com/photo-1517256064527-09c73fc73e38?auto=format&fit=crop&w=600&q=80"
+                  />
+                  <BeforeAfterCard 
+                    title="Corporate Gifting"
+                    description="Standard packaging vs customized corporate gift boxes."
+                    before="https://images.unsplash.com/photo-1595079676339-1534801ad6cf?auto=format&fit=crop&w=600&q=80"
+                    after="https://images.unsplash.com/photo-1549465220-1a8b9238cd48?auto=format&fit=crop&w=600&q=80"
+                  />
+                  <BeforeAfterCard 
+                    title="Apparel Branding"
+                    description="Turning plain blanks into branded staff uniforms."
+                    before="https://images.unsplash.com/photo-1581655353564-df123a1eb820?auto=format&fit=crop&w=600&q=80"
+                    after="https://images.unsplash.com/photo-1503341504253-dff4815485f1?auto=format&fit=crop&w=600&q=80"
+                  />
+               </div>
+            </div>
           </div>
+      </section>
+
+      {/* Pricing Estimates */}
+      <section className="py-24 bg-slate-900/30">
+        <div className="max-w-5xl mx-auto px-4">
+           <h2 className="text-3xl font-bold text-white text-center mb-12">Price Estimates</h2>
+           <div className="glass-panel overflow-hidden rounded-3xl">
+              <table className="w-full text-left border-collapse">
+                 <thead>
+                    <tr className="border-b border-white/10 bg-white/5">
+                       <th className="p-6 text-sm font-bold text-slate-300 uppercase tracking-wider">Category</th>
+                       <th className="p-6 text-sm font-bold text-slate-300 uppercase tracking-wider">Estimated Price</th>
+                       <th className="p-6 text-sm font-bold text-slate-300 uppercase tracking-wider">Action</th>
+                    </tr>
+                 </thead>
+                 <tbody className="divide-y divide-white/5">
+                    <tr>
+                       <td className="p-6 text-white font-medium">Custom Branded Glasses</td>
+                       <td className="p-6 text-slate-400">R70 – R120 per unit</td>
+                       <td className="p-6"><button onClick={() => openWhatsApp("Quote for Custom Glasses")} className="text-blue-400 hover:text-blue-300 text-sm font-bold">Get Quote →</button></td>
+                    </tr>
+                    <tr>
+                       <td className="p-6 text-white font-medium">PPE Bulk Orders</td>
+                       <td className="p-6 text-slate-400">Volume Based Discounts</td>
+                       <td className="p-6"><button onClick={() => openWhatsApp("Quote for PPE")} className="text-blue-400 hover:text-blue-300 text-sm font-bold">Get Quote →</button></td>
+                    </tr>
+                    <tr>
+                       <td className="p-6 text-white font-medium">Beverage Labeling</td>
+                       <td className="p-6 text-slate-400">Custom (Design Dependent)</td>
+                       <td className="p-6"><button onClick={() => openWhatsApp("Quote for Beverage Labeling")} className="text-blue-400 hover:text-blue-300 text-sm font-bold">Get Quote →</button></td>
+                    </tr>
+                    <tr>
+                       <td className="p-6 text-white font-medium">Household Wholesale</td>
+                       <td className="p-6 text-slate-400">Wholesale Pricing</td>
+                       <td className="p-6"><button onClick={() => openWhatsApp("Quote for Household Wholesale")} className="text-blue-400 hover:text-blue-300 text-sm font-bold">Get Quote →</button></td>
+                    </tr>
+                 </tbody>
+              </table>
+           </div>
         </div>
-      </div>
+      </section>
+
+      {/* Reviews Wall */}
+      <section className="py-24 overflow-hidden relative">
+         <div className="max-w-7xl mx-auto px-4 mb-12 text-center">
+            <h2 className="text-3xl font-bold text-white mb-4">Trusted by Businesses</h2>
+            <div className="flex justify-center gap-1">
+               {[1,2,3,4,5].map(s => <StarIcon key={s} className="w-5 h-5 text-yellow-500" />)}
+            </div>
+         </div>
+         
+         <div className="flex gap-6 overflow-x-auto pb-8 px-4 snap-x mx-auto max-w-7xl scrollbar-hide">
+            {[
+              { name: "Thabo M.", role: "Event Organizer", text: "Sourced 200 custom glasses for our wedding. Delivered on time and looked amazing!" },
+              { name: "Sarah L.", role: "Restaurant Owner", text: "Best supplier for bulk beverages. Good prices and they actually deliver when they say they will." },
+              { name: "Sipho K.", role: "Construction Manager", text: "We get all our PPE from Simayne now. The quality of the safety boots is top tier." },
+              { name: "James D.", role: "Small Business", text: "Helped me brand my first batch of sauces. They made the process so easy." }
+            ].map((review, i) => (
+               <div key={i} className="min-w-[300px] bg-slate-900 border border-white/5 p-6 rounded-2xl snap-center">
+                  <p className="text-slate-300 italic mb-4">"{review.text}"</p>
+                  <div className="flex items-center gap-3">
+                     <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center font-bold text-white">{review.name[0]}</div>
+                     <div>
+                        <div className="text-white font-bold text-sm">{review.name}</div>
+                        <div className="text-slate-500 text-xs">{review.role}</div>
+                     </div>
+                  </div>
+               </div>
+            ))}
+         </div>
+      </section>
+
+      {/* Timeline */}
+      <section className="py-24 bg-slate-900/50">
+         <div className="max-w-3xl mx-auto px-4">
+             <h2 className="text-3xl font-bold text-white text-center mb-16">Our Journey</h2>
+             <div className="relative border-l-2 border-slate-800 ml-4 md:ml-0 md:pl-0 space-y-12">
+                 {[
+                   { year: "2024", title: "Started Sourcing", desc: "Began as a small sourcing side hustle finding hard-to-get items." },
+                   { year: "2025", title: "Expansion", desc: "Expanded into custom branding, white-labeling, and wholesale supply." },
+                   { year: "2026", title: "National Supply", desc: "Vision to supply businesses nationwide with a fully integrated logistics network." }
+                 ].map((item, i) => (
+                    <div key={i} className="relative pl-8 md:pl-12">
+                       <div className="absolute -left-[9px] top-0 w-5 h-5 rounded-full bg-blue-600 border-4 border-slate-900 shadow-lg shadow-blue-500/50"></div>
+                       <div className="text-blue-400 font-bold mb-1">{item.year}</div>
+                       <h3 className="text-xl font-bold text-white mb-2">{item.title}</h3>
+                       <p className="text-slate-400">{item.desc}</p>
+                    </div>
+                 ))}
+             </div>
+         </div>
+      </section>
+
+      {/* Downloads Section */}
+      <section className="py-24">
+         <div className="max-w-4xl mx-auto px-4">
+            <h2 className="text-3xl font-bold text-white text-center mb-12">Company Documents</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+               {["Company Profile", "BBBEE Certificate", "Tax Clearance", "Bank Letter"].map((doc, i) => (
+                  <button key={i} className="flex flex-col items-center justify-center p-6 bg-slate-900 border border-white/5 hover:border-blue-500 rounded-2xl transition-all group">
+                     <div className="w-12 h-12 bg-slate-800 rounded-xl flex items-center justify-center mb-4 group-hover:bg-blue-600 transition-colors">
+                        <FileTextIcon className="w-6 h-6 text-slate-400 group-hover:text-white" />
+                     </div>
+                     <span className="text-sm font-medium text-slate-300 group-hover:text-white mb-2">{doc}</span>
+                     <span className="text-xs text-slate-500 flex items-center gap-1">
+                        <DownloadIcon className="w-3 h-3" /> PDF
+                     </span>
+                  </button>
+               ))}
+            </div>
+         </div>
+      </section>
 
       {/* Track Order Section */}
-      <section id="track" className="relative py-16 z-10">
+      <section id="track" className="relative py-16 z-10 bg-slate-900/30 border-y border-white/5">
          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="glass-panel rounded-3xl p-8 md:p-12 border border-white/10 shadow-2xl">
               <div className="text-center mb-8">
@@ -499,46 +891,19 @@ const App: React.FC = () => {
         </div>
       </section>
 
-      {/* Mission Section */}
-      <section className="py-24 relative overflow-hidden">
-        {/* Decorative background similar to other sections */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-indigo-500/10 rounded-full blur-[100px] pointer-events-none"></div>
-        
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-          <div className="text-center mb-16">
-             <h2 className="text-3xl md:text-4xl font-bold text-white mb-6">Our Mission</h2>
-             <p className="max-w-3xl mx-auto text-lg text-slate-300 leading-relaxed">
-               To provide value, ideas, and strategic thinking. We don't just supply products; we deliver solutions that help our clients succeed, whether they are small entrepreneurs or large corporations.
-             </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-             {/* Card 1 */}
-             <div className="glass-panel p-8 rounded-3xl border-t border-white/10 hover:border-blue-500/30 transition-all duration-300 group">
-                <div className="h-12 w-12 bg-blue-500/20 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                   <LightBulbIcon className="h-6 w-6 text-blue-400" />
-                </div>
-                <h3 className="text-xl font-bold text-white mb-3">Innovation</h3>
-                <p className="text-slate-400">Constantly exploring new product opportunities, from custom beverages to unique merchandise.</p>
-             </div>
-             {/* Card 2 */}
-             <div className="glass-panel p-8 rounded-3xl border-t border-white/10 hover:border-purple-500/30 transition-all duration-300 group">
-                <div className="h-12 w-12 bg-purple-500/20 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                   <ShieldCheckIcon className="h-6 w-6 text-purple-400" />
-                </div>
-                <h3 className="text-xl font-bold text-white mb-3">Reliability</h3>
-                <p className="text-slate-400">Delivering consistency and professionalism in every order, ensuring you get what you need, when you need it.</p>
-             </div>
-             {/* Card 3 */}
-             <div className="glass-panel p-8 rounded-3xl border-t border-white/10 hover:border-indigo-500/30 transition-all duration-300 group">
-                 <div className="h-12 w-12 bg-indigo-500/20 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                   <GlobeIcon className="h-6 w-6 text-indigo-400" />
-                </div>
-                <h3 className="text-xl font-bold text-white mb-3">Scalability</h3>
-                <p className="text-slate-400">Serving both individual custom requests and bulk commercial orders with the same attention to detail.</p>
-             </div>
-          </div>
-        </div>
+      {/* Partners Section */}
+      <section className="py-16">
+         <div className="max-w-7xl mx-auto px-4 text-center">
+            <h4 className="text-slate-500 text-sm font-bold uppercase tracking-widest mb-8">Our Supply Partners</h4>
+            <div className="flex flex-wrap justify-center gap-8 md:gap-16 opacity-50 grayscale hover:grayscale-0 transition-all duration-500">
+               {[1,2,3,4].map(i => (
+                  <div key={i} className="flex items-center gap-2">
+                     <BriefcaseIcon className="w-8 h-8 text-white" />
+                     <span className="text-xl font-bold text-white">PARTNER {i}</span>
+                  </div>
+               ))}
+            </div>
+         </div>
       </section>
 
       {/* FAQ Section */}
@@ -600,10 +965,10 @@ const App: React.FC = () => {
                 <li className="flex justify-between text-sm"><span className="text-slate-500">Sun</span> <span>Closed</span></li>
               </ul>
               <div className="mt-6 pt-6 border-t border-white/5">
-                <a href="mailto:contact@simaynetradings.com" className="group flex items-center text-blue-400 hover:text-blue-300 transition-colors font-medium">
+                <button onClick={() => openWhatsApp("Hi, I would like to contact Simayne Trading.")} className="group flex items-center text-blue-400 hover:text-blue-300 transition-colors font-medium">
                   Contact Us 
                   <span className="ml-2 group-hover:translate-x-1 transition-transform">→</span>
-                </a>
+                </button>
               </div>
             </div>
           </div>

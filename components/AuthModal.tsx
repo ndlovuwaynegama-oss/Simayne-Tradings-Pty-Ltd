@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { XIcon, UserIcon, LockClosedIcon, MailIcon, SparklesIcon } from './Icons';
 import { User } from '../types';
 
 interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onLogin: (user: User) => void;
+  onLogin: (user: User, rememberMe: boolean) => void;
   initialView?: 'login' | 'signup';
 }
 
@@ -14,11 +14,15 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLogin, initial
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
+  // Focus management
+  const firstInputRef = useRef<HTMLInputElement>(null);
+
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     password: '',
-    confirmPassword: ''
+    confirmPassword: '',
+    rememberMe: false
   });
 
   // Reset view mode when modal opens or initialView changes
@@ -26,9 +30,21 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLogin, initial
     if (isOpen) {
       setIsLogin(initialView === 'login');
       setError(null);
-      // Reset form data on open/view switch if needed, keeping simple for now
+      // Focus the first input after a short delay to allow animation/rendering
+      setTimeout(() => {
+        firstInputRef.current?.focus();
+      }, 100);
     }
   }, [isOpen, initialView]);
+
+  // Re-focus first applicable input when switching modes
+  useEffect(() => {
+    if (isOpen) {
+       setTimeout(() => {
+        firstInputRef.current?.focus();
+      }, 100);
+    }
+  }, [isLogin, isOpen]);
 
   const getPasswordStrength = (pass: string) => {
     if (!pass) return 0;
@@ -44,12 +60,51 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLogin, initial
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Simulated API Request with Error Handling
+  const mockAuthRequest = (isLoginMode: boolean, data: typeof formData): Promise<User> => {
+    return new Promise((resolve, reject) => {
+      setTimeout(() => {
+        // Mock specific error triggers for testing/demonstration
+        if (isLoginMode) {
+            // Simulate 401 Unauthorized: Trigger with 'error' in email or password
+            if (data.email.includes('error') || data.password === 'error') {
+                reject(new Error("Invalid email or password. Please double-check your credentials."));
+                return;
+            }
+            // Simulate 404 User Not Found: Trigger with 'unknown' in email
+            if (data.email.includes('unknown')) {
+                 reject(new Error("No account found with this email. Please sign up to create a new account."));
+                 return;
+            }
+        } else {
+            // Simulate 409 Conflict (User exists): Trigger with 'exists' in email or specific admin email
+            if (data.email.includes('exists') || data.email === 'admin@simayne.com') {
+                reject(new Error("An account with this email address already exists. Please sign in instead."));
+                return;
+            }
+        }
+
+        // Simulate random network error (very low probability)
+        if (Math.random() > 0.98) {
+             reject(new Error("Network connection failed. Please check your internet connection."));
+             return;
+        }
+
+        // Success
+        resolve({
+          name: isLoginMode ? (data.email.split('@')[0]) : data.name,
+          email: data.email
+        });
+      }, 1500);
+    });
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setLoading(true);
 
-    // Validation
+    // Client-side Validation
     if (!formData.email || !formData.password || (!isLogin && !formData.name)) {
       setError("Please fill in all required fields.");
       setLoading(false);
@@ -63,36 +118,62 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLogin, initial
             return;
         }
         if (formData.password !== formData.confirmPassword) {
-            setError("Passwords do not match.");
+            setError("Passwords do not match. Please try again.");
             setLoading(false);
             return;
         }
+        
+        // Granular Password Validation
+        if (formData.password.length < 6) {
+           setError("Password is too short. Please use at least 6 characters.");
+           setLoading(false);
+           return;
+        }
+        
+        if (!/[0-9]/.test(formData.password)) {
+           setError("Password must contain at least one number.");
+           setLoading(false);
+           return;
+        }
+
         if (passwordStrength < 2) {
-           setError("Please choose a stronger password.");
+           // Fallback for edge cases (e.g. only special chars but short)
+           setError("Password is too weak. Please add numbers or special characters.");
            setLoading(false);
            return;
         }
     }
 
-    // Simulate API call
-    setTimeout(() => {
-      setLoading(false);
-      // Mock successful login/signup
-      const user: User = {
-        name: isLogin ? (formData.email.split('@')[0]) : formData.name,
-        email: formData.email
-      };
-      onLogin(user);
+    try {
+      const user = await mockAuthRequest(isLogin, formData);
+      onLogin(user, formData.rememberMe);
       onClose();
-    }, 1500);
+    } catch (err: any) {
+      setError(err.message || "An unexpected error occurred. Please try again later.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getStrengthText = (strength: number) => {
+      if (strength <= 1) return "Weak";
+      if (strength <= 3) return "Fair";
+      return "Strong";
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div 
+      className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="auth-modal-title"
+      aria-describedby="auth-modal-desc"
+    >
       {/* Backdrop */}
       <div 
         className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm"
         onClick={onClose}
+        aria-hidden="true"
       ></div>
 
       {/* Modal Content */}
@@ -101,76 +182,95 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLogin, initial
         <div className="relative bg-gradient-to-r from-blue-900/50 to-indigo-900/50 p-6 text-center border-b border-white/5">
             <button 
                 onClick={onClose}
-                className="absolute top-4 right-4 text-slate-400 hover:text-white transition-colors"
+                className="absolute top-4 right-4 text-slate-400 hover:text-white transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-lg p-1"
+                aria-label="Close modal"
             >
                 <XIcon className="h-6 w-6" />
             </button>
             <div className="mx-auto w-12 h-12 bg-blue-500/20 rounded-xl flex items-center justify-center mb-3">
-                <SparklesIcon className="h-6 w-6 text-blue-400" />
+                <SparklesIcon className="h-6 w-6 text-blue-400" aria-hidden="true" />
             </div>
-            <h2 className="text-2xl font-bold text-white mb-1">
+            <h2 id="auth-modal-title" className="text-2xl font-bold text-white mb-1">
                 {isLogin ? 'Welcome Back' : 'Join Simayne'}
             </h2>
-            <p className="text-slate-400 text-sm">
+            <p id="auth-modal-desc" className="text-slate-400 text-sm">
                 {isLogin ? 'Sign in to access your dashboard' : 'Create an account to start sourcing'}
             </p>
         </div>
 
         {/* Form */}
         <div className="p-8">
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-4" noValidate>
                 {!isLogin && (
                     <div className="space-y-1 animate-fade-in">
-                        <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider ml-1">Full Name</label>
+                        <label htmlFor="auth-name" className="text-xs font-semibold text-slate-400 uppercase tracking-wider ml-1">Full Name</label>
                         <div className="relative">
                             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                <UserIcon className="h-5 w-5 text-slate-500" />
+                                <UserIcon className="h-5 w-5 text-slate-500" aria-hidden="true" />
                             </div>
                             <input
+                                id="auth-name"
+                                ref={!isLogin ? firstInputRef : null}
                                 type="text"
                                 placeholder="John Doe"
                                 value={formData.name}
                                 onChange={(e) => setFormData({...formData, name: e.target.value})}
                                 className="w-full bg-slate-800/50 border border-slate-700 text-white rounded-xl py-3 pl-10 pr-4 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all placeholder-slate-500"
+                                required
+                                aria-required="true"
                             />
                         </div>
                     </div>
                 )}
 
                 <div className="space-y-1">
-                    <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider ml-1">Email Address</label>
+                    <label htmlFor="auth-email" className="text-xs font-semibold text-slate-400 uppercase tracking-wider ml-1">Email Address</label>
                     <div className="relative">
                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                            <MailIcon className="h-5 w-5 text-slate-500" />
+                            <MailIcon className="h-5 w-5 text-slate-500" aria-hidden="true" />
                         </div>
                         <input
+                            id="auth-email"
+                            ref={isLogin ? firstInputRef : null}
                             type="email"
                             placeholder="you@company.com"
                             value={formData.email}
                             onChange={(e) => setFormData({...formData, email: e.target.value})}
                             className="w-full bg-slate-800/50 border border-slate-700 text-white rounded-xl py-3 pl-10 pr-4 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all placeholder-slate-500"
+                            required
+                            aria-required="true"
                         />
                     </div>
                 </div>
 
                 <div className="space-y-1">
-                    <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider ml-1">Password</label>
+                    <label htmlFor="auth-password" className="text-xs font-semibold text-slate-400 uppercase tracking-wider ml-1">Password</label>
                     <div className="relative">
                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                            <LockClosedIcon className="h-5 w-5 text-slate-500" />
+                            <LockClosedIcon className="h-5 w-5 text-slate-500" aria-hidden="true" />
                         </div>
                         <input
+                            id="auth-password"
                             type="password"
                             placeholder="••••••••"
                             value={formData.password}
                             onChange={(e) => setFormData({...formData, password: e.target.value})}
                             className="w-full bg-slate-800/50 border border-slate-700 text-white rounded-xl py-3 pl-10 pr-4 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all placeholder-slate-500"
+                            required
+                            aria-required="true"
                         />
                     </div>
                     
                     {/* Password Strength Indicator */}
                     {!isLogin && formData.password && (
-                        <div className="pt-2 animate-fade-in">
+                        <div 
+                          className="pt-2 animate-fade-in"
+                          role="progressbar" 
+                          aria-valuenow={passwordStrength} 
+                          aria-valuemin={0} 
+                          aria-valuemax={4} 
+                          aria-label={`Password strength: ${getStrengthText(passwordStrength)}`}
+                        >
                             <div className="flex gap-1 h-1.5 mb-1">
                                 {[1, 2, 3, 4].map((step) => (
                                     <div 
@@ -183,12 +283,12 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLogin, initial
                                     />
                                 ))}
                             </div>
-                            <div className="flex justify-between items-center px-1">
+                            <div className="flex justify-between items-center px-1" aria-hidden="true">
                                 <span className="text-[10px] text-slate-500">Min 6 chars</span>
                                 <span className={`text-[10px] font-medium transition-colors ${
                                     passwordStrength <= 1 ? 'text-red-400' : passwordStrength <= 3 ? 'text-yellow-400' : 'text-green-400'
                                 }`}>
-                                    {passwordStrength <= 1 ? 'Weak' : passwordStrength <= 3 ? 'Fair' : 'Strong'}
+                                    {getStrengthText(passwordStrength)}
                                 </span>
                             </div>
                         </div>
@@ -198,24 +298,48 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLogin, initial
                 {/* Confirm Password Field */}
                 {!isLogin && (
                     <div className="space-y-1 animate-fade-in">
-                        <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider ml-1">Confirm Password</label>
+                        <label htmlFor="auth-confirm-password" className="text-xs font-semibold text-slate-400 uppercase tracking-wider ml-1">Confirm Password</label>
                         <div className="relative">
                             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                <LockClosedIcon className="h-5 w-5 text-slate-500" />
+                                <LockClosedIcon className="h-5 w-5 text-slate-500" aria-hidden="true" />
                             </div>
                             <input
+                                id="auth-confirm-password"
                                 type="password"
                                 placeholder="••••••••"
                                 value={formData.confirmPassword}
                                 onChange={(e) => setFormData({...formData, confirmPassword: e.target.value})}
                                 className="w-full bg-slate-800/50 border border-slate-700 text-white rounded-xl py-3 pl-10 pr-4 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all placeholder-slate-500"
+                                required
+                                aria-required="true"
                             />
                         </div>
                     </div>
                 )}
+                
+                {/* Remember Me Checkbox (Login Only) */}
+                {isLogin && (
+                   <div className="flex items-center justify-between pt-1">
+                       <label className="flex items-center gap-2 cursor-pointer group select-none">
+                           <div className="relative flex items-center justify-center">
+                               <input 
+                                 type="checkbox"
+                                 checked={formData.rememberMe}
+                                 onChange={(e) => setFormData({...formData, rememberMe: e.target.checked})}
+                                 className="peer h-4 w-4 appearance-none rounded border border-slate-600 bg-slate-800 checked:bg-blue-600 checked:border-blue-600 transition-all cursor-pointer focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 focus:ring-offset-slate-900"
+                               />
+                               <svg className="absolute w-3 h-3 text-white opacity-0 peer-checked:opacity-100 pointer-events-none transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3">
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                               </svg>
+                           </div>
+                           <span className="text-sm text-slate-400 group-hover:text-slate-300 transition-colors">Remember me</span>
+                       </label>
+                       <button type="button" className="text-sm text-blue-400 hover:text-blue-300 transition-colors font-medium">Forgot Password?</button>
+                   </div>
+                )}
 
                 {error && (
-                    <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-300 text-xs text-center animate-pulse">
+                    <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-300 text-xs text-center animate-pulse" role="alert" aria-live="assertive">
                         {error}
                     </div>
                 )}
@@ -223,7 +347,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLogin, initial
                 <button
                     type="submit"
                     disabled={loading}
-                    className="w-full py-3.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl shadow-lg shadow-blue-500/20 transition-all transform hover:-translate-y-0.5 active:scale-[0.98] disabled:opacity-50 disabled:transform-none mt-2"
+                    className="w-full py-3.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl shadow-lg shadow-blue-500/20 transition-all transform hover:-translate-y-0.5 active:scale-[0.98] disabled:opacity-50 disabled:transform-none mt-2 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-blue-500"
                 >
                     {loading ? (
                         <span className="flex items-center justify-center gap-2">
@@ -240,8 +364,9 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLogin, initial
                 <p className="text-slate-400 text-sm">
                     {isLogin ? "Don't have an account?" : "Already have an account?"}
                     <button 
+                        type="button"
                         onClick={() => { setIsLogin(!isLogin); setError(null); setFormData({...formData, confirmPassword: ''}); }}
-                        className="ml-2 text-blue-400 hover:text-blue-300 font-medium transition-colors"
+                        className="ml-2 text-blue-400 hover:text-blue-300 font-medium transition-colors focus:outline-none focus:underline"
                     >
                         {isLogin ? 'Sign up' : 'Log in'}
                     </button>
